@@ -31,326 +31,326 @@ class Generate_human_error:
 
         self.n, self.dim = self.data['X'].shape
 
-    def normalize_features(self, delta=1):
-        n, dim = self.data['X'].shape
-        for feature in range(dim):
-            self.data['X'][:, feature] = np.true_divide(self.data['X'][:, feature],
-                                                        100 * LA.norm(self.data['X'][:, feature].flatten()))
-            self.data['test']['X'][:, feature] = np.true_divide(self.data['test']['X'][:, feature], 100 * LA.norm(
-                self.data['test']['X'][:, feature].flatten()))
+#     def normalize_features(self, delta=1):
+#         n, dim = self.data['X'].shape
+#         for feature in range(dim):
+#             self.data['X'][:, feature] = np.true_divide(self.data['X'][:, feature],
+#                                                         100 * LA.norm(self.data['X'][:, feature].flatten()))
+#             self.data['test']['X'][:, feature] = np.true_divide(self.data['test']['X'][:, feature], 100 * LA.norm(
+#                 self.data['test']['X'][:, feature].flatten()))
 
-        print np.max([LA.norm(x.flatten()) for x in self.data['X']])
+#         print np.max([LA.norm(x.flatten()) for x in self.data['X']])
 
-    def white_Gauss(self, std=1, n=1, upper_bound=False, y_vec=None):
-        init_noise = rand.normal(0, std, n)
-        if upper_bound:
-            return np.array([noise if noise / y < 0.3 else 0.1 * y for noise, y in zip(init_noise, y_vec)])
-        else:
-            return init_noise
+#     def white_Gauss(self, std=1, n=1, upper_bound=False, y_vec=None):
+#         init_noise = rand.normal(0, std, n)
+#         if upper_bound:
+#             return np.array([noise if noise / y < 0.3 else 0.1 * y for noise, y in zip(init_noise, y_vec)])
+#         else:
+#             return init_noise
 
-    def data_independent_noise(self, list_of_std, upper_bound=False):
-        self.data['c'] = {}
-        self.data['test']['c'] = {}
-        for std in list_of_std:
-            self.data['c'][str(std)] = self.white_Gauss(std, self.data['Y'].shape[0], upper_bound, self.data['Y']) ** 2
-            self.data['test']['c'][str(std)] = self.white_Gauss(std, self.data['test']['Y'].shape[0], upper_bound,
-                                                                self.data['test']['Y']) ** 2
+#     def data_independent_noise(self, list_of_std, upper_bound=False):
+#         self.data['c'] = {}
+#         self.data['test']['c'] = {}
+#         for std in list_of_std:
+#             self.data['c'][str(std)] = self.white_Gauss(std, self.data['Y'].shape[0], upper_bound, self.data['Y']) ** 2
+#             self.data['test']['c'][str(std)] = self.white_Gauss(std, self.data['test']['Y'].shape[0], upper_bound,
+#                                                                 self.data['test']['Y']) ** 2
 
-    def variable_std_Gauss(self, std_const, x):
-        x_norm = LA.norm(x, axis=1).flatten()
-        std_vector = std_const * np.reciprocal(x_norm)
-        tmp = np.array([rand.normal(0, s, 1)[0] for s in std_vector])
-        return tmp
+#     def variable_std_Gauss(self, std_const, x):
+#         x_norm = LA.norm(x, axis=1).flatten()
+#         std_vector = std_const * np.reciprocal(x_norm)
+#         tmp = np.array([rand.normal(0, s, 1)[0] for s in std_vector])
+#         return tmp
 
-    def data_dependent_noise(self, list_of_std):
-        self.data['c'] = {}
-        self.data['test']['c'] = {}
-        for std in list_of_std:
-            self.data['c'][str(std)] = self.variable_std_Gauss(std, self.data['X']) ** 2
-            self.data['test']['c'][str(std)] = self.variable_std_Gauss(std, self.data['test']['X']) ** 2
+#     def data_dependent_noise(self, list_of_std):
+#         self.data['c'] = {}
+#         self.data['test']['c'] = {}
+#         for std in list_of_std:
+#             self.data['c'][str(std)] = self.variable_std_Gauss(std, self.data['X']) ** 2
+#             self.data['test']['c'][str(std)] = self.variable_std_Gauss(std, self.data['test']['X']) ** 2
 
-    def modify_y_values(self):
-        def get_num_category(y, y_t):
-            y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
-            return np.unique(y).shape[0]
+#     def modify_y_values(self):
+#         def get_num_category(y, y_t):
+#             y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
+#             return np.unique(y).shape[0]
 
-        def map_range(v, l, h, l_new, h_new):
-            return float(v - l) * ((h_new - l_new) / float(h - l)) + l_new
+#         def map_range(v, l, h, l_new, h_new):
+#             return float(v - l) * ((h_new - l_new) / float(h - l)) + l_new
 
-        num_cat = get_num_category(self.data['Y'], self.data['test']['Y'])
-        print num_cat
-        self.data['Y'] = np.array([map_range(i, 0, 1, float(1) / num_cat, 1) for i in self.data['Y']]).flatten()
-        self.data['test']['Y'] = np.array(
-            [map_range(i, 0, 1, float(1) / num_cat, 1) for i in self.data['test']['Y']]).flatten()
+#         num_cat = get_num_category(self.data['Y'], self.data['test']['Y'])
+#         print num_cat
+#         self.data['Y'] = np.array([map_range(i, 0, 1, float(1) / num_cat, 1) for i in self.data['Y']]).flatten()
+#         self.data['test']['Y'] = np.array(
+#             [map_range(i, 0, 1, float(1) / num_cat, 1) for i in self.data['test']['Y']]).flatten()
 
-    def get_discrete_noise(self, p, num_cat):
-        m = 10
-        c = []
-        for sample in range(self.n):
-            if False:
-                sum = 0
-                for i in range(m):
-                    x = np.random.uniform(0, 1)
-                    if x < p:
-                        sum += (float(1) / num_cat) ** 2
-                c.append(float(sum) / m)
-            else:
-                c.append(((float(1) / num_cat) ** 2) * p)
-        return np.array(c)
+#     def get_discrete_noise(self, p, num_cat):
+#         m = 10
+#         c = []
+#         for sample in range(self.n):
+#             if False:
+#                 sum = 0
+#                 for i in range(m):
+#                     x = np.random.uniform(0, 1)
+#                     if x < p:
+#                         sum += (float(1) / num_cat) ** 2
+#                 c.append(float(sum) / m)
+#             else:
+#                 c.append(((float(1) / num_cat) ** 2) * p)
+#         return np.array(c)
 
-    def discrete_noise(self, list_of_p):
-        def get_num_category(y, y_t):
-            y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
-            return np.unique(y).shape[0]
+#     def discrete_noise(self, list_of_p):
+#         def get_num_category(y, y_t):
+#             y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
+#             return np.unique(y).shape[0]
 
-        num_cat = get_num_category(self.data['Y'], self.data['test']['Y'])
-        self.data['c'] = {}
-        self.data['test']['c'] = {}
+#         num_cat = get_num_category(self.data['Y'], self.data['test']['Y'])
+#         self.data['c'] = {}
+#         self.data['test']['c'] = {}
 
-        for p in list_of_p:
-            self.data['c'][str(p)] = self.get_discrete_noise(p, num_cat)
-            self.data['test']['c'][str(p)] = self.get_discrete_noise(p, num_cat)
+#         for p in list_of_p:
+#             self.data['c'][str(p)] = self.get_discrete_noise(p, num_cat)
+#             self.data['test']['c'][str(p)] = self.get_discrete_noise(p, num_cat)
 
-    def vary_discrete_old_data_format(self, noise_ratio, list_of_high_err_const):
-        def nearest(i):
-            return np.argmin(self.data['dist_mat'][i])
+#     def vary_discrete_old_data_format(self, noise_ratio, list_of_high_err_const):
+#         def nearest(i):
+#             return np.argmin(self.data['dist_mat'][i])
 
-        n = self.data['X'].shape[0]
-        indices = np.arange(n)
-        random.shuffle(indices)
-        self.data['low'] = {}
-        self.data['c'] = {}
-        self.data['test']['c'] = {}
+#         n = self.data['X'].shape[0]
+#         indices = np.arange(n)
+#         random.shuffle(indices)
+#         self.data['low'] = {}
+#         self.data['c'] = {}
+#         self.data['test']['c'] = {}
 
-        for high_err_const in list_of_high_err_const:
-            num_low = int(high_err_const * n)
-            self.data['low'][str(high_err_const)] = indices[:num_low]
-            self.data['c'][str(high_err_const)] = np.array(
-                [0.0001 if i in self.data['low'][str(high_err_const)] else 0.25 for i in range(n)])
-            self.data['test']['c'][str(high_err_const)] = np.array(
-                [0.0001 if nearest(i) in self.data['low'][str(high_err_const)] else 0.5 for i in
-                 range(self.data['test']['X'].shape[0])])
+#         for high_err_const in list_of_high_err_const:
+#             num_low = int(high_err_const * n)
+#             self.data['low'][str(high_err_const)] = indices[:num_low]
+#             self.data['c'][str(high_err_const)] = np.array(
+#                 [0.0001 if i in self.data['low'][str(high_err_const)] else 0.25 for i in range(n)])
+#             self.data['test']['c'][str(high_err_const)] = np.array(
+#                 [0.0001 if nearest(i) in self.data['low'][str(high_err_const)] else 0.5 for i in
+#                  range(self.data['test']['X'].shape[0])])
 
-    def vary_discrete_3(self, list_of_noise_ratio):
-        def get_num_category(y, y_t):
-            y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
-            return np.unique(y).shape[0]
+#     def vary_discrete_3(self, list_of_noise_ratio):
+#         def get_num_category(y, y_t):
+#             y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
+#             return np.unique(y).shape[0]
 
-        def nearest(i):
-            return np.argmin(self.data['dist_mat'][i])
+#         def nearest(i):
+#             return np.argmin(self.data['dist_mat'][i])
 
-        self.normalize_features()
-        num_cat = get_num_category(self.data['Y'], self.data['test']['Y'])
-        high_err_const = 45
-        n = self.data['X'].shape[0]
-        indices = np.arange(n)
-        random.shuffle(indices)
-        err = ((float(1) / num_cat) ** 2) / 50
-        self.data['low'] = {}
-        self.data['c'] = {}
-        self.data['test']['c'] = {}
+#         self.normalize_features()
+#         num_cat = get_num_category(self.data['Y'], self.data['test']['Y'])
+#         high_err_const = 45
+#         n = self.data['X'].shape[0]
+#         indices = np.arange(n)
+#         random.shuffle(indices)
+#         err = ((float(1) / num_cat) ** 2) / 50
+#         self.data['low'] = {}
+#         self.data['c'] = {}
+#         self.data['test']['c'] = {}
 
-        # list_of_low_indices = []
-        for noise_ratio in list_of_noise_ratio:
-            num_low = int(noise_ratio * n)
-            # print num_low
-            self.data['low'][str(noise_ratio)] = indices[:num_low]
-            self.data['c'][str(noise_ratio)] = np.array(
-                [err if i in self.data['low'][str(noise_ratio)] else high_err_const * err for i in range(n)])
-            print 'c min', np.min(self.data['c'][str(noise_ratio)])
-            print 'c max', np.max(self.data['c'][str(noise_ratio)])
-            self.data['test']['c'][str(noise_ratio)] = np.array(
-                [err if nearest(i) in self.data['low'][str(noise_ratio)] else high_err_const * err for i in
-                 range(self.data['test']['X'].shape[0])])
+#         # list_of_low_indices = []
+#         for noise_ratio in list_of_noise_ratio:
+#             num_low = int(noise_ratio * n)
+#             # print num_low
+#             self.data['low'][str(noise_ratio)] = indices[:num_low]
+#             self.data['c'][str(noise_ratio)] = np.array(
+#                 [err if i in self.data['low'][str(noise_ratio)] else high_err_const * err for i in range(n)])
+#             print 'c min', np.min(self.data['c'][str(noise_ratio)])
+#             print 'c max', np.max(self.data['c'][str(noise_ratio)])
+#             self.data['test']['c'][str(noise_ratio)] = np.array(
+#                 [err if nearest(i) in self.data['low'][str(noise_ratio)] else high_err_const * err for i in
+#                  range(self.data['test']['X'].shape[0])])
 
-    def vary_discrete_3_v2(self, list_of_class_indices):
-        def get_num_category(y, y_t):
-            y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
-            return np.unique(y).shape[0]
+#     def vary_discrete_3_v2(self, list_of_class_indices):
+#         def get_num_category(y, y_t):
+#             y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
+#             return np.unique(y).shape[0]
 
-        def nearest(i):
-            return np.argmin(self.data['dist_mat'][i])
+#         def nearest(i):
+#             return np.argmin(self.data['dist_mat'][i])
 
-        self.normalize_features()
-        num_cat = get_num_category(self.data['Y'], self.data['test']['Y'])
-        err = ((float(1) / num_cat) ** 2) / 50
-        self.data['c'] = {}
-        self.data['test']['c'] = {}
-        list_of_high_indices = []
-        c = np.ones(self.data['X'].shape[0]) * err
+#         self.normalize_features()
+#         num_cat = get_num_category(self.data['Y'], self.data['test']['Y'])
+#         err = ((float(1) / num_cat) ** 2) / 50
+#         self.data['c'] = {}
+#         self.data['test']['c'] = {}
+#         list_of_high_indices = []
+#         c = np.ones(self.data['X'].shape[0]) * err
 
-        for class_index in list_of_class_indices:
-            class_label = float(class_index + 1) / num_cat
-            new_indices = np.where(self.data['Y'] == class_label)[0]
-            list_of_high_indices.extend(list(new_indices))
-            err_upper = class_label ** 2
-            c[new_indices] = err_upper
-            self.data['c'][str(class_index)] = np.copy(c)
-            print 'c min', np.min(self.data['c'][str(class_index)])
-            print 'c max', np.max(self.data['c'][str(class_index)])
-            plt.plot(self.data['c'][str(class_index)])
-            plt.show()
-            plt.close()
-            self.data['test']['c'][str(class_index)] = np.ones(self.data['test']['X'].shape[0]) * err
+#         for class_index in list_of_class_indices:
+#             class_label = float(class_index + 1) / num_cat
+#             new_indices = np.where(self.data['Y'] == class_label)[0]
+#             list_of_high_indices.extend(list(new_indices))
+#             err_upper = class_label ** 2
+#             c[new_indices] = err_upper
+#             self.data['c'][str(class_index)] = np.copy(c)
+#             print 'c min', np.min(self.data['c'][str(class_index)])
+#             print 'c max', np.max(self.data['c'][str(class_index)])
+#             plt.plot(self.data['c'][str(class_index)])
+#             plt.show()
+#             plt.close()
+#             self.data['test']['c'][str(class_index)] = np.ones(self.data['test']['X'].shape[0]) * err
 
-    def vary_discrete(self, list_of_frac, file_name):
+#     def vary_discrete(self, list_of_frac, file_name):
 
-        def nearest(i):
-            return np.argmin(self.data['dist_mat'][i])
+#         def nearest(i):
+#             return np.argmin(self.data['dist_mat'][i])
 
-        self.normalize_features()
-        n = self.data['X'].shape[0]
-        indices = np.arange(n)
-        random.shuffle(indices)
+#         self.normalize_features()
+#         n = self.data['X'].shape[0]
+#         indices = np.arange(n)
+#         random.shuffle(indices)
 
-        self.data['low'] = {}
-        self.data['c'] = {}
-        self.data['test']['c'] = {}
+#         self.data['low'] = {}
+#         self.data['c'] = {}
+#         self.data['test']['c'] = {}
 
-        for frac in list_of_frac:
-            num_low = int(frac * n)
-            self.data['low'][str(frac)] = indices[:num_low]
+#         for frac in list_of_frac:
+#             num_low = int(frac * n)
+#             self.data['low'][str(frac)] = indices[:num_low]
 
-            if file_name == 'Umessidor':
-                self.data['c'][str(frac)] = np.array(
-                    [0.0001 if i in self.data['low'][str(frac)] else 0.4 for i in range(n)])
-                self.data['test']['c'][str(frac)] = np.array(
-                    [0.0001 if nearest(i) in self.data['low'][str(frac)] else 0.4 for i in
-                     range(self.data['test']['X'].shape[0])])
+#             if file_name == 'Umessidor':
+#                 self.data['c'][str(frac)] = np.array(
+#                     [0.0001 if i in self.data['low'][str(frac)] else 0.4 for i in range(n)])
+#                 self.data['test']['c'][str(frac)] = np.array(
+#                     [0.0001 if nearest(i) in self.data['low'][str(frac)] else 0.4 for i in
+#                      range(self.data['test']['X'].shape[0])])
 
-            if file_name == 'Ustare11':
-                self.data['c'][str(frac)] = np.array(
-                    [0.0001 if i in self.data['low'][str(frac)] else 0.1 for i in range(n)])
-                self.data['test']['c'][str(frac)] = np.array(
-                    [0.0001 if nearest(i) in self.data['low'][str(frac)] else 0.25 for i in
-                     range(self.data['test']['X'].shape[0])])
+#             if file_name == 'Ustare11':
+#                 self.data['c'][str(frac)] = np.array(
+#                     [0.0001 if i in self.data['low'][str(frac)] else 0.1 for i in range(n)])
+#                 self.data['test']['c'][str(frac)] = np.array(
+#                     [0.0001 if nearest(i) in self.data['low'][str(frac)] else 0.25 for i in
+#                      range(self.data['test']['X'].shape[0])])
 
-            if file_name == 'Ustare5':
-                self.data['c'][str(frac)] = np.array(
-                    [0.0001 if i in self.data['low'][str(frac)] else 0.1 for i in range(n)])
-                self.data['test']['c'][str(frac)] = np.array(
-                    [0.0001 if nearest(i) in self.data['low'][str(frac)] else 0.1 for i in
-                     range(self.data['test']['X'].shape[0])])
+#             if file_name == 'Ustare5':
+#                 self.data['c'][str(frac)] = np.array(
+#                     [0.0001 if i in self.data['low'][str(frac)] else 0.1 for i in range(n)])
+#                 self.data['test']['c'][str(frac)] = np.array(
+#                     [0.0001 if nearest(i) in self.data['low'][str(frac)] else 0.1 for i in
+#                      range(self.data['test']['X'].shape[0])])
 
-    def variable_std_dirichlet(self, x_tr, y_tr, std, file_name):
+#     def variable_std_dirichlet(self, x_tr, y_tr, std, file_name):
 
-        def get_num_category(y, y_t):
-            y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
-            return np.unique(y)
+#         def get_num_category(y, y_t):
+#             y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
+#             return np.unique(y)
 
-        cats = get_num_category(self.data['Y'], self.data['test']['Y'])
+#         cats = get_num_category(self.data['Y'], self.data['test']['Y'])
 
-        if file_name == 'messidor':
-            prob = [[6, 3, 1], [2, 6, 2], [1, 3, 6]]
+#         if file_name == 'messidor':
+#             prob = [[6, 3, 1], [2, 6, 2], [1, 3, 6]]
 
-        if file_name == 'stare5':
-            prob = [[6, 3, 2, 2, 1, 1], [3, 6, 2, 2, 1, 1], [2, 3, 6, 2, 1, 1], [1, 2, 3, 6, 2, 1], [1, 1, 2, 3, 6, 2],
-                    [1, 1, 2, 2, 3, 6]]
+#         if file_name == 'stare5':
+#             prob = [[6, 3, 2, 2, 1, 1], [3, 6, 2, 2, 1, 1], [2, 3, 6, 2, 1, 1], [1, 2, 3, 6, 2, 1], [1, 1, 2, 3, 6, 2],
+#                     [1, 1, 2, 2, 3, 6]]
 
-        if file_name == 'stare11':
-            prob = [[6, 3, 2, 2, 1], [3, 6, 2, 2, 1], [1, 3, 6, 2, 2], [1, 2, 3, 6, 2],
-                    [1, 2, 2, 3, 6]]
-        tmp = []
-        for idx, data in enumerate(x_tr):
-            label = y_tr[idx]
-            trueindex = np.argwhere(label == cats)
-            assert trueindex.size == 1
-            trueindex = trueindex.flatten()[0]
-            error = 0
-            std_vector = np.random.dirichlet(prob[trueindex])
-            for idx, probability in enumerate(std_vector):
-                error += (probability * ((cats[idx] - cats[trueindex]) ** 2))
-            tmp.append(error)
+#         if file_name == 'stare11':
+#             prob = [[6, 3, 2, 2, 1], [3, 6, 2, 2, 1], [1, 3, 6, 2, 2], [1, 2, 3, 6, 2],
+#                     [1, 2, 2, 3, 6]]
+#         tmp = []
+#         for idx, data in enumerate(x_tr):
+#             label = y_tr[idx]
+#             trueindex = np.argwhere(label == cats)
+#             assert trueindex.size == 1
+#             trueindex = trueindex.flatten()[0]
+#             error = 0
+#             std_vector = np.random.dirichlet(prob[trueindex])
+#             for idx, probability in enumerate(std_vector):
+#                 error += (probability * ((cats[idx] - cats[trueindex]) ** 2))
+#             tmp.append(error)
 
-        tmp = np.array(tmp)
-        tmp = tmp.reshape(tmp.shape[0])
+#         tmp = np.array(tmp)
+#         tmp = tmp.reshape(tmp.shape[0])
 
-        return tmp
+#         return tmp
 
-    def dirichlet(self, list_of_p, file_name):
+#     def dirichlet(self, list_of_p, file_name):
 
-        self.data['c'] = {}
-        self.data['test']['c'] = {}
-        for std in list_of_p:
-            self.data['c'][str(std)] = self.variable_std_dirichlet(self.data['X'], self.data['Y'], std, file_name)
-            self.data['test']['c'][str(std)] = self.variable_std_dirichlet(self.data['test']['X'],
-                                                                           self.data['test']['Y'], std, file_name)
+#         self.data['c'] = {}
+#         self.data['test']['c'] = {}
+#         for std in list_of_p:
+#             self.data['c'][str(std)] = self.variable_std_dirichlet(self.data['X'], self.data['Y'], std, file_name)
+#             self.data['test']['c'][str(std)] = self.variable_std_dirichlet(self.data['test']['X'],
+#                                                                            self.data['test']['Y'], std, file_name)
 
-    def generate_variable_human_prediction(self, Y, list_of_std, threshold):
-        c = {}
-        y_h = {}
-        h = {}
-        Pr_H = {}
-        Pr_H_gt = {}
-        doctors_label = {}
-        doctor_label_thresholded = {}
-        doctors_label = {}
-        num_doctors = 1
-        scale = 4 # 3
-        def descrete_label(cont):
-            if cont > threshold:
-                return 1
-            else:
-                return -1
+#     def generate_variable_human_prediction(self, Y, list_of_std, threshold):
+#         c = {}
+#         y_h = {}
+#         h = {}
+#         Pr_H = {}
+#         Pr_H_gt = {}
+#         doctors_label = {}
+#         doctor_label_thresholded = {}
+#         doctors_label = {}
+#         num_doctors = 1
+#         scale = 4 # 3
+#         def descrete_label(cont):
+#             if cont > threshold:
+#                 return 1
+#             else:
+#                 return -1
 
-        def get_num_category(y, y_t):
-            y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
-            return np.unique(y)
+#         def get_num_category(y, y_t):
+#             y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
+#             return np.unique(y)
 
-        cats = get_num_category(self.data['Y'],self.data['test']['Y'])
+#         cats = get_num_category(self.data['Y'],self.data['test']['Y'])
 
-        def compute_h(cont_label):
-            return ((2.0 * (cont_label - cats[0]) / (cats[cats.size-1] - cats[0])) - 0.7)
+#         def compute_h(cont_label):
+#             return ((2.0 * (cont_label - cats[0]) / (cats[cats.size-1] - cats[0])) - 0.7)
 
-        # print h_threshold,h_test_threshold
+#         # print h_threshold,h_test_threshold
 
-        for std in list_of_std:
-            # h_threshold = np.random.normal(threshold, std, (Y.shape[0],num_doctors))
-            doctors_h = np.zeros((Y.shape[0], num_doctors))
-            y_h[str(std)] = np.ones(shape=Y.shape[0])
-            c[str(std)] = np.ones(shape=Y.shape[0])
-            h[str(std)] = np.ones(shape=Y.shape[0])
-            doctors_label[str(std)] = np.zeros((Y.shape[0], num_doctors))
-            doctor_label_thresholded[str(std)] = np.zeros((Y.shape[0], num_doctors))
-            Pr_H[str(std)] = np.zeros(shape=Y.shape[0],dtype='int')
-            Pr_H_gt[str(std)] = np.zeros(shape=Y.shape[0])
-            # h = (self.data['Y']*scale - sample(list,1))
-            for idx, cont_label in enumerate(Y):
-                label = descrete_label(cont_label)
-                doctors_label[str(std)][idx] = Y[idx] + np.random.normal(0, std, (num_doctors))
-
-
-                doctor_label_thresholded[str(std)][idx] = [descrete_label(doc_label) for doc_label in doctors_label[str(std)][idx]]
+#         for std in list_of_std:
+#             # h_threshold = np.random.normal(threshold, std, (Y.shape[0],num_doctors))
+#             doctors_h = np.zeros((Y.shape[0], num_doctors))
+#             y_h[str(std)] = np.ones(shape=Y.shape[0])
+#             c[str(std)] = np.ones(shape=Y.shape[0])
+#             h[str(std)] = np.ones(shape=Y.shape[0])
+#             doctors_label[str(std)] = np.zeros((Y.shape[0], num_doctors))
+#             doctor_label_thresholded[str(std)] = np.zeros((Y.shape[0], num_doctors))
+#             Pr_H[str(std)] = np.zeros(shape=Y.shape[0],dtype='int')
+#             Pr_H_gt[str(std)] = np.zeros(shape=Y.shape[0])
+#             # h = (self.data['Y']*scale - sample(list,1))
+#             for idx, cont_label in enumerate(Y):
+#                 label = descrete_label(cont_label)
+#                 doctors_label[str(std)][idx] = Y[idx] + np.random.normal(0, std, (num_doctors))
 
 
-                Pr_H_gt[str(std)][idx] = np.mean(np.absolute(doctor_label_thresholded[str(std)][idx] - label))/2.0
-                A_idx = []
-                while len(A_idx) < num_doctors/2:
-                    num = np.random.randint(0, num_doctors)
-                    if num not in A_idx:
-                        A_idx.append(num)
-                # print A_idx
-                A = np.array([doc_label for doc_idx, doc_label in enumerate(doctors_label[str(std)][idx]) if doc_idx in A_idx])
-                B = np.array(
-                    [doc_label for doc_idx, doc_label in enumerate(doctors_label[str(std)][idx]) if doc_idx not in A_idx])
-                # print A
-                # print B
-                A_mean = descrete_label(np.mean(A))
-                B_mean = descrete_label(np.mean(B))
+#                 doctor_label_thresholded[str(std)][idx] = [descrete_label(doc_label) for doc_label in doctors_label[str(std)][idx]]
 
-                if A_mean != B_mean: #doctors disagree
-                    Pr_H[str(std)][idx] = 1  # disagreement
-                else:
-                    Pr_H[str(std)][idx] = 0  # agreement
 
-                final_label = np.mean(doctors_label[str(std)][idx])
-                c[str(std)][idx] = np.maximum(0, 1 - (label * compute_h(final_label))) * 0.01
-                final_label_thresholded = descrete_label(final_label)
-                h[str(std)][idx] = compute_h(final_label)
-                y_h[str(std)][idx] = final_label_thresholded
+#                 Pr_H_gt[str(std)][idx] = np.mean(np.absolute(doctor_label_thresholded[str(std)][idx] - label))/2.0
+#                 A_idx = []
+#                 while len(A_idx) < num_doctors/2:
+#                     num = np.random.randint(0, num_doctors)
+#                     if num not in A_idx:
+#                         A_idx.append(num)
+#                 # print A_idx
+#                 A = np.array([doc_label for doc_idx, doc_label in enumerate(doctors_label[str(std)][idx]) if doc_idx in A_idx])
+#                 B = np.array(
+#                     [doc_label for doc_idx, doc_label in enumerate(doctors_label[str(std)][idx]) if doc_idx not in A_idx])
+#                 # print A
+#                 # print B
+#                 A_mean = descrete_label(np.mean(A))
+#                 B_mean = descrete_label(np.mean(B))
 
-        print c, h, y_h, Pr_H, Pr_H_gt
-        return c, h, y_h, Pr_H, Pr_H_gt
+#                 if A_mean != B_mean: #doctors disagree
+#                     Pr_H[str(std)][idx] = 1  # disagreement
+#                 else:
+#                     Pr_H[str(std)][idx] = 0  # agreement
+
+#                 final_label = np.mean(doctors_label[str(std)][idx])
+#                 c[str(std)][idx] = np.maximum(0, 1 - (label * compute_h(final_label))) * 0.01
+#                 final_label_thresholded = descrete_label(final_label)
+#                 h[str(std)][idx] = compute_h(final_label)
+#                 y_h[str(std)][idx] = final_label_thresholded
+
+#         print c, h, y_h, Pr_H, Pr_H_gt
+#         return c, h, y_h, Pr_H, Pr_H_gt
 
 
     def estimated_uncertainty_generate_variable_human_prediction(self, Y, list_of_std, threshold):
