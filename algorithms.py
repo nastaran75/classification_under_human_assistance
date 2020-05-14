@@ -17,6 +17,11 @@ class triage_human_machine:
         else:
             self.c = np.square(data_dict['human_pred'] - data_dict['Y'])
 
+        self.Pr_H = data_dict['Pr_H']
+        self.Pr_M = data_dict['Pr_M']
+        self.Pr_M_Alg = data_dict['Pr_M_Alg']
+        self.Pr_H_gt = data_dict['Pr_H_gt']
+        self.Pr_M_gt = data_dict['Pr_M_gt']
         self.dim = self.X.shape[1]
         self.n = self.X.shape[0]
         self.V = np.arange(self.n)
@@ -67,7 +72,7 @@ class triage_human_machine:
         c_mod = modular_distort_greedy({'X': self.X, 'Y': self.Y, 'c': self.c, 'lamb': self.lamb,'svm_type':svm_type})
         subset = np.array([]).astype(int)
         g.reset()
-        epsilon=0.001
+        epsilon=0.0001
         s = int(math.ceil(self.n * np.log(float(1) / epsilon) / float(K)))
         print 'subset_size', s, 'K-->', K, ', n --> ', self.n
 
@@ -86,7 +91,10 @@ class triage_human_machine:
             # print subset_choosen
             c_mod_inc = c_mod.get_inc_arr(subset, rest_flag=True, subset_rest=subset_choosen)
             g_inc_arr, subset_c_ret = g.get_inc_arr(subset, rest_flag=True, subset_rest=subset_choosen)
-            g_pos_inc = g_inc_arr.flatten() + c_mod_inc
+            g_pos_inc = g_inc_arr.flatten()# + c_mod_inc
+            # print g_pos_inc, c_mod_inc
+            assert (g_pos_inc>0).all()
+
             inc_vec = frac * g_pos_inc - c_mod_inc
 
             if np.max(inc_vec) <= 0:
@@ -113,6 +121,7 @@ class triage_human_machine:
             g_inc_arr, subset_c_ret = g.get_inc_arr(subset)
             g_pos_inc = g_inc_arr.flatten() #+ c_mod_inc
             inc_vec = frac * g_pos_inc - c_mod_inc
+            assert (g_pos_inc >= 0).all()
 
             if np.max(inc_vec) <= 0:
                 print 'no increment'
@@ -136,7 +145,8 @@ class triage_human_machine:
         subset = {}
         G_subset = []
         # gamma = 1.0
-        gamma = 0.1
+        gamma = 0.01  # for final messidor
+        # gamma = 0.1  # final for stare11
         # gamma = float(1) / float(self.n)
 
         for r in range(T + 1):
@@ -154,9 +164,11 @@ class triage_human_machine:
 
         return subset[str(max_set_ind)]
 
-    def kl_triage_subset(self):
-        kl_obj = kl_triage({'X': self.X, 'Y': self.Y, 'c': self.c, 'lamb': self.lamb})
-        return kl_obj.get_subset(self.K)
+    def kl_triage_subset(self, triage_type):
+        kl_obj = kl_triage({'X': self.X, 'Y': self.Y, 'c': self.c, 'lamb': self.lamb,
+                            'Pr_H': self.Pr_H, 'Pr_M': self.Pr_M, 'Pr_M_Alg': self.Pr_M_Alg,
+                            'Pr_H_gt': self.Pr_H_gt, 'Pr_M_gt': self.Pr_M_gt})
+        return kl_obj.get_subset(self.K, triage_type)
 
 
     def algorithmic_triage(self, param, optim):
@@ -184,8 +196,17 @@ class triage_human_machine:
         # finish = time.time()
         # print finish - start
 
-        if optim == 'kl_triage':
-            subset = self.kl_triage_subset()
+        if optim == 'kl_triage_slack':
+            subset = self.kl_triage_subset(triage_type='slack')
+
+        if optim == 'kl_triage_estimated':
+            subset = self.kl_triage_subset(triage_type='estimated')
+
+        if optim == 'kl_triage_Alg':
+            subset = self.kl_triage_subset(triage_type='Alg')
+
+        if optim == 'kl_triage_gt':
+            subset = self.kl_triage_subset(triage_type='gt')
         #
         if optim == 'stochastic_distort_greedy':
             subset = self.gamma_sweep_distort_greedy(flag_stochastic=True, svm_type=param['svm_type'])

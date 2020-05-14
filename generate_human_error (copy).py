@@ -1,7 +1,6 @@
 import numpy.random as rand
 from process_image_data import *
 import matplotlib.pyplot as plt
-
 from random import sample
 
 
@@ -26,8 +25,6 @@ class Generate_human_error:
             del self.data['test']['y_h']
             del self.data['h']
             del self.data['test']['h']
-            # del self.data['X_norm']
-            # del self.data['test']['X_norm']
 
         self.n, self.dim = self.data['X'].shape
 
@@ -284,70 +281,81 @@ class Generate_human_error:
         Pr_H_gt = {}
         doctors_label = {}
         doctor_label_thresholded = {}
-        doctors_label = {}
-        num_doctors = 1
-        scale = 4 # 3
+        num_doctors = 10
+        scale = 4  # 3
         def descrete_label(cont):
             if cont > threshold:
                 return 1
             else:
                 return -1
 
-        def get_num_category(y, y_t):
-            y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
-            return np.unique(y)
-
-        cats = get_num_category(self.data['Y'],self.data['test']['Y'])
-
-        def compute_h(cont_label):
-            return ((2.0 * (cont_label - cats[0]) / (cats[cats.size-1] - cats[0])) - 0.7)
-
         # print h_threshold,h_test_threshold
 
         for std in list_of_std:
-            # h_threshold = np.random.normal(threshold, std, (Y.shape[0],num_doctors))
+            h_threshold = np.random.normal(threshold, std, (Y.shape[0],num_doctors))
             doctors_h = np.zeros((Y.shape[0], num_doctors))
             y_h[str(std)] = np.ones(shape=Y.shape[0])
             c[str(std)] = np.ones(shape=Y.shape[0])
             h[str(std)] = np.ones(shape=Y.shape[0])
-            doctors_label[str(std)] = np.zeros((Y.shape[0], num_doctors))
-            doctor_label_thresholded[str(std)] = np.zeros((Y.shape[0], num_doctors))
+            doctor_label_thresholded = np.zeros((Y.shape[0], num_doctors))
             Pr_H[str(std)] = np.zeros(shape=Y.shape[0],dtype='int')
             Pr_H_gt[str(std)] = np.zeros(shape=Y.shape[0])
             # h = (self.data['Y']*scale - sample(list,1))
-            for idx, cont_label in enumerate(Y):
-                label = descrete_label(cont_label)
-                doctors_label[str(std)][idx] = Y[idx] + np.random.normal(0, std, (num_doctors))
+            for idx, label in enumerate(Y):
+                if label > threshold:
+                    label = 1
+                else:
+                    label = -1
+                doctors_h[idx] = (Y[idx] - h_threshold[idx]) * scale
 
 
-                doctor_label_thresholded[str(std)][idx] = [descrete_label(doc_label) for doc_label in doctors_label[str(std)][idx]]
+                for doc_idx, doc_h in enumerate(doctors_h[idx]):
+                    if doc_h>0:
+                        doctor_label_thresholded[idx][doc_idx] = 1
+                    else:
+                        doctor_label_thresholded[idx][doc_idx] = -1
 
-
-                Pr_H_gt[str(std)][idx] = np.mean(np.absolute(doctor_label_thresholded[str(std)][idx] - label))/2.0
+                Pr_H_gt[str(std)][idx] = np.mean(np.absolute(doctor_label_thresholded - label))/2.0
                 A_idx = []
                 while len(A_idx) < num_doctors/2:
                     num = np.random.randint(0, num_doctors)
                     if num not in A_idx:
                         A_idx.append(num)
                 # print A_idx
-                A = np.array([doc_label for doc_idx, doc_label in enumerate(doctors_label[str(std)][idx]) if doc_idx in A_idx])
+                A = np.array([doc_label for doc_idx, doc_label in enumerate(doctor_label_thresholded[idx]) if doc_idx in A_idx])
                 B = np.array(
-                    [doc_label for doc_idx, doc_label in enumerate(doctors_label[str(std)][idx]) if doc_idx not in A_idx])
+                    [doc_label for doc_idx, doc_label in enumerate(doctor_label_thresholded[idx]) if doc_idx not in A_idx])
                 # print A
                 # print B
-                A_mean = descrete_label(np.mean(A))
-                B_mean = descrete_label(np.mean(B))
+                A_mean = np.sum(A)
+                B_mean = np.sum(B)
 
-                if A_mean != B_mean: #doctors disagree
+                if A_mean *B_mean <0 : #doctors disagree
                     Pr_H[str(std)][idx] = 1  # disagreement
                 else:
                     Pr_H[str(std)][idx] = 0  # agreement
 
-                final_label = np.mean(doctors_label[str(std)][idx])
-                c[str(std)][idx] = np.maximum(0, 1 - (label * compute_h(final_label))) * 0.01
-                final_label_thresholded = descrete_label(final_label)
-                h[str(std)][idx] = compute_h(final_label)
-                y_h[str(std)][idx] = final_label_thresholded
+                final_label = np.sum(doctor_label_thresholded[idx])
+                if final_label>0:
+                    final_label = 1
+                else:
+                    final_label = -1
+
+                # if human_label > threshold:
+                #     human_label_thresholded = 1
+                # else:
+                #     human_label_thresholded = -1
+
+                y_h[str(std)][idx] = final_label
+
+                #
+                # if h_human[idx] * label < 0:
+                #     y_h[str(std)][idx] = -label
+                # else:
+                #     y_h[str(std)][idx] = label
+                final_h = np.mean(doctors_h[idx])
+                c[str(std)][idx] = np.maximum(0, 1 - (label * final_h))
+                h[str(std)][idx] = final_h
 
         print c, h, y_h, Pr_H, Pr_H_gt
         return c, h, y_h, Pr_H, Pr_H_gt
@@ -363,10 +371,6 @@ class Generate_human_error:
         doctor_label_thresholded = {}
         num_doctors = 10
 
-        def get_num_category(y, y_t):
-            y = np.concatenate((y.flatten(), y_t.flatten()), axis=0)
-            return np.unique(y)
-
         def descrete_label(cont):
             if cont > threshold:
                 return 1
@@ -374,16 +378,11 @@ class Generate_human_error:
                 return -1
 
         def compute_h(cont_label):
-            return (2.0 * (cont_label - cats[0]) / (cats[cats.size-1] - cats[0])) - 0.9
+            return (2.0 * (cont_label - cats[0]) / (cats[cats.size-1] - cats[0])) - 0.7
 
-        cats = get_num_category(self.data['Y'],self.data['test']['Y'])
+        cats = np.unique(Y)
         # prob = [[0.2, 0.1, 0.1], [0.1, 0.15, 0.1], [0.1, 0.1, 0.15]] #lamb 1 human error less than machine
-        prob = [[0.25, 0.1, 0.1], [0.1, 0.2, 0.2], [0.1, 0.2, 0.2]] #lamb 1 human error more than machine
-        # prob = [[.4, .3, .1, .1,.1], [.3, .4, .1, .1, .1], [.1, .1, .2, .2, .1], [.1, .1, .1, .2, .1],
-        #         [.1, .1, .1, .2, .2]] #final for stare 5
-        # prob = [[1, 1, .1, .1, .1, .1], [1, 1, .1, .1, .1, .1], [.1, .1, .1, .1, .1, .1], [.1, .1, .1, .1, .1, .1],
-        #         [.1, .1, .1, .1, .1, .1], [.1, .1, .1, .1, .1, .1]]
-
+        prob = [[0.2, 0.1, 0.1], [0.1, 0.2, 0.1], [0.1, 0.1, 0.2]] #lamb 1 human error more than machine
 
         for std in list_of_std:
             y_h[str(std)] = np.zeros(shape=Y.shape, dtype='int')
@@ -401,14 +400,12 @@ class Generate_human_error:
                 assert trueindex.size == 1
                 trueindex = trueindex.flatten()[0]
                 std_vector = np.random.dirichlet(prob[trueindex], size=num_doctors)
-                # hmap = {cats[0]: -1.8, cats[1]: 1.4, cats[2]: 1.8} #messidor
-                # hmap = {cats[0]: -2.0, cats[1]: -1.5, cats[2]: 1.0, cats[3]:1.5, cats[4]:2.0} stare11
-                # hmap = {cats[0]: -2.0, cats[1]: -1.5, cats[2]: 1.0, cats[3]: 1.3, cats[4]:1.6, cats[5]: 2.0}
+                hmap = {cats[0]: -2.0, cats[1]: 1.5, cats[2]: 2.0}
 
                 for std_idx, doctor_prob in enumerate(std_vector):
                     doctors_label[str(std)][idx][std_idx] = (np.random.choice(cats, 1, p=doctor_prob)[0])
                     for prob_idx,probability in enumerate(doctor_prob):
-                        c[str(std)][idx] += probability * np.maximum(0, 1 - (compute_h([cats[prob_idx]]) * thresholded_label)) #* 0.01
+                        c[str(std)][idx] += probability * np.maximum(0, 1 - (hmap[cats[prob_idx]] * thresholded_label)) * 0.01
 
                 c[str(std)][idx] /= num_doctors
 
@@ -448,22 +445,19 @@ class Generate_human_error:
         self.data['c'], self.data['h'], self.data['y_h'], self.data['Pr_H'], self.data['Pr_H_gt']= \
             self.estimated_uncertainty_generate_variable_human_prediction(self.data['Y'], list_of_std, threshold)
 
-        _, self.data['test']['h'], self.data['test']['y_h'], _, _ = \
+        self.data['test']['c'], self.data['test']['h'], self.data['test']['y_h'], self.data['test']['Pr_H'], self.data['test']['Pr_H_gt'] = \
             self.estimated_uncertainty_generate_variable_human_prediction(self.data['test']['Y'], list_of_std,
                                                                           threshold)
-        # self.normalize()
+
         # self.data['c'], self.data['h'], self.data['y_h'], self.data['Pr_H'], self.data['Pr_H_gt'] = \
         #     self.generate_variable_human_prediction(self.data['Y'],list_of_std,threshold)
         #
-        # _, self.data['test']['h'], self.data['test']['y_h'], _, _ = \
+        # self.data['test']['c'], self.data['test']['h'], self.data['test']['y_h'], self.data['test']['Pr_H'], self.data['test']['Pr_H_gt'] = \
         #     self.generate_variable_human_prediction(self.data['test']['Y'],list_of_std,threshold)
 
-        self.data['test']['Pr_H'] = {}
         for std in list_of_std:
-            print np.mean(self.data['y_h'][str(std)] == self.get_labels(self.data['Y'], threshold))
-            print np.mean(self.data['test']['y_h'][str(std)] == self.get_labels(self.data['test']['Y'],threshold))
             from sklearn.neural_network import MLPClassifier
-            lamb = 1#1 for messidor and stare11
+            lamb = 1
             X = self.data['X']
             model = MLPClassifier(max_iter=300)
             model.fit(X, self.data['Pr_H'][str(std)])
@@ -484,22 +478,11 @@ class Generate_human_error:
         # print self.data['test']['Pr_M']
         # print self.data['Pr_M_gt']
         # # print self.data['test']['Pr_M_gt']
-        # print self.data['Pr_M_Alg']
-        # print self.data['test']['Pr_M_Alg']
+        print self.data['Pr_M_Alg']
+        print self.data['test']['Pr_M_Alg']
         # self.data['c'] = self.data['Pr_M_Alg']
 
         # # print self.data['c']
-
-    def normalize(self):
-        from sklearn import preprocessing
-        # min_max_scaler = preprocessing.MinMaxScaler(feature_range=(-1, 1))
-        # self.data['X_norm'] = min_max_scaler.fit_transform(self.data['X'])
-        # self.data['test']['X_norm'] = min_max_scaler.transform(self.data['test']['X'])
-        # self.data['X_norm'] = (self.data['X'] - np.mean(self.data['X'])) / np.std(self.data['X'])
-        # self.data['test']['X_norm'] = (self.data['test']['X'] - np.mean(self.data['test']['X'])) / np.std(self.data['test']['X'])
-
-        self.data['X'] = self.data['X']
-        self.data['test']['X'] = self.data['test']['X']
 
     def compute_Pr_M_gt(self,threshold,lamb):
 
@@ -510,19 +493,11 @@ class Generate_human_error:
                 return -1
 
         from sklearn.svm import SVC
-        from sklearn import svm
         reg_par = float(1) / (2.0 * lamb * self.data['X'].shape[0])
         # model = SVC(gamma=0.001, C=reg_par)
         model = SVC(kernel='linear', C=reg_par)
-        # model = svm.LinearSVC(C=reg_par, fit_intercept=False, loss='hinge')
-        # X, X_te = self.normalize(self.data['X'], self.data['test']['X'])
-        X = self.data['X']
-        X_te = self.data['test']['X']
-        model.fit(X, self.get_labels(self.data['Y'],threshold))
-        print 'gt'
-        print np.mean(self.get_labels(self.data['Y'],threshold) == model.predict(X))
-        print np.mean(self.get_labels(self.data['test']['Y'], threshold) == model.predict(X_te))
-        h = model.decision_function(X)
+        model.fit(self.data['X'], self.get_labels(self.data['Y'],threshold))
+        h = model.decision_function(self.data['X'])
         rank = np.argsort(-np.absolute(h))
         # loss = np.maximum(0, 1 - (h * self.data['Y']))
         error = np.zeros(self.data['X'].shape[0])
@@ -547,24 +522,17 @@ class Generate_human_error:
     def compute_triage_alg(self, threshold,std,lamb):
         from sklearn.neural_network import MLPClassifier
         from sklearn.svm import SVC
-        from sklearn import svm
-        # X, X_te = self.normalize(self.data['X'], self.data['test']['X'])
         X = self.data['X']
-        X_te = self.data['test']['X']
         reg_par = float(1) / (2.0 * lamb * X.shape[0])
         # machine_model = SVC(C=reg_par, gamma=0.001)
         machine_model = SVC(C=reg_par,kernel='linear')
-        # machine_model = svm.LinearSVC(C=reg_par, fit_intercept=False, loss='hinge')
         machine_model.fit(X, self.get_labels(self.data['Y'], threshold))
         train_pred = machine_model.predict(X)
-        print 'alg'
         print np.mean(train_pred == self.get_labels(self.data['Y'], threshold))
-        print np.mean(machine_model.predict(X_te) == self.get_labels(self.data['test']['Y'], threshold))
-
-
+        print np.mean(self.data['y_h'][str(std)] == self.get_labels(self.data['Y'], threshold))
 
         h = np.absolute(machine_model.decision_function(X))
-        h_test = np.absolute(machine_model.decision_function(X_te))
+        h_test = np.absolute(machine_model.decision_function(self.data['test']['X']))
 
 
         return 1.0 / (1.0 + np.exp(h)), 1.0 / (1.0 + np.exp(h_test))
@@ -572,21 +540,13 @@ class Generate_human_error:
 
     def compute_triage_estimated(self,threshold,std,lamb):
         from sklearn.svm import SVC
-        from sklearn import svm
         from sklearn.neural_network import MLPClassifier
-        # X, X_te= self.normalize(self.data['X'], self.data['test']['X'])
         X = self.data['X']
-        X_te = self.data['test']['X']
-
         reg_par = float(1) / (2.0 * lamb * X.shape[0])
         # machine_model = SVC(C=reg_par, gamma=0.001)
         machine_model = SVC(C=reg_par, kernel='linear')
-        # machine_model = svm.LinearSVC(C=reg_par, fit_intercept=False, loss='hinge')
         machine_model.fit(X, self.get_labels(self.data['Y'], threshold))
         train_pred = machine_model.predict(X)
-        print 'estimated'
-        print np.mean(train_pred == self.get_labels(self.data['Y'], threshold))
-        print np.mean(machine_model.predict(X_te) == self.get_labels(self.data['test']['Y'],threshold))
         Y = np.zeros(X.shape[0], dtype='int')
         for idx, item in enumerate(self.data['y_h'][str(std)]):
             if item != train_pred[idx]:  # disagreement
@@ -595,7 +555,7 @@ class Generate_human_error:
         model = MLPClassifier(max_iter=300)
         model.fit(X, Y)
 
-        return Y, model.predict(X_te)
+        return Y, model.predict(self.data['test']['X'])
 
     def get_labels(self, cont_y,threshold):
         y = np.zeros(cont_y.shape)
@@ -608,8 +568,8 @@ class Generate_human_error:
             else:
                 y[idx] = -1
                 cntminus += 1
-        # print 'positive, negative'
-        # print cntplus, cntminus
+        print 'positive, negative'
+        print cntplus, cntminus
         # print y
         return y
 
@@ -653,7 +613,7 @@ def generate_human_error(file_name_list):
             obj.dirichlet_generate_variable_human_prediction(list_of_std, 0.5)
 
         if option == 'estimated_uncertainty':
-            obj.estimated_uncertainty(list_of_std, 0.6)  #65 for messidor 0.5 for stare11
+            obj.estimated_uncertainty(list_of_std, 0.65)
 
         if option == 'dirichlet':
             obj.dirichlet(list_of_std, file_name)

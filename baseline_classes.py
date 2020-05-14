@@ -6,6 +6,11 @@ class kl_triage:
         self.Y = data['Y']
         self.c = data['c']
         self.lamb = data['lamb']
+        self.Pr_H = data['Pr_H']
+        self.Pr_M = data['Pr_M']
+        self.Pr_M_Alg = data['Pr_M_Alg']
+        self.Pr_H_gt = data['Pr_H_gt']
+        self.Pr_M_gt = data['Pr_M_gt']
         self.n, self.dim = self.X.shape
         self.V = np.arange(self.n)
         self.training()
@@ -14,10 +19,21 @@ class kl_triage:
         self.train_machine_error()
         # self.train_human_error()
 
-    def get_subset(self, K):
+    def get_subset(self, K, triage_type):
         # print self.machine_err
-        # err = np.sqrt(self.c) - np.absolute(self.machine_err)
-        err = self.c - self.machine_err
+        if triage_type == 'slack':
+            # err = np.sqrt(self.c) - np.absolute(self.machine_err)
+            err = self.c - self.machine_err
+
+        if triage_type == 'estimated':
+            err = self.Pr_H - self.Pr_M
+
+        if triage_type == 'Alg':
+            err = - self.Pr_M_Alg
+
+        if triage_type == 'gt':
+            err = self.Pr_H_gt - self.Pr_M_gt
+
         indices = np.argsort(err)
         # print indices
         return indices[:K]
@@ -35,13 +51,15 @@ class kl_triage:
         from sklearn import svm
         from sklearn.metrics import hinge_loss
         reg_par = float(1) / (2.0 * self.lamb * self.n)
-        model = svm.LinearSVC(C=reg_par)
+        model = svm.SVC(C=30,gamma=0.0001)
         # model = svm.SVC(kernel='linear', C=reg_par)
         model.fit(X, Y)
-        y_pred = model.decision_function(X)
-        w = model.coef_
+
+        w = model.dual_coef_
         reg = self.lamb * (self.n) * np.dot(w, w.T)[0][0]
-        loss = np.maximum(0,1-(y_pred*Y))
+        h = model.decision_function(X)
+
+        loss = np.maximum(0,1-(h*Y))
         # hinge_machine_loss = hinge_loss(Y, y_pred)
         # hinge_machine_loss *= y_pred.shape[0]
         # print np.sum(loss),hinge_machine_loss
@@ -57,21 +75,22 @@ class modular_distort_greedy:
         self.g = G({'X': self.X, 'Y': self.Y, 'c': self.c, 'lamb': self.lamb, 'svm_type' : self.svm_type})
         self.n, self.dim = self.X.shape
         self.V = np.arange(self.n)
-        self.initialize()
+        self.bigVal = 1000.0
+        # self.initialize()
 
 
-    def initialize(self):
-        # G_null = self.g.eval(np.array([]).astype(int))
-        # self.null_val = max(0.0, - G_null)
-        # prev = self.g.eval(np.array([0]))
-        # # G_ascend = np.array([self.g.eval(np.arange(i + 1)) - self.g.eval(np.arange(i)) for i in self.V-10])
-        # G_ascend = np.zeros(shape=self.V.shape[0])
-        # for i in self.V-30:
-        #     G_ascend[i] = self.g.eval(np.arange(i + 1)) - prev
-        #     prev = G_ascend[i]
-        # # G_ascend = np.array([self.g.eval(np.arange(i + 1)) - prev for i in self.V - 10])
-        # self.w = np.array([np.max(np.array([0.0, G_ascend[i]])) for i in self.V]).flatten()
-        self.w = np.array([self.c[i] for i in self.V])
+    # def initialize(self):
+    #     # G_null = self.g.eval(np.array([]).astype(int))
+    #     # self.null_val = max(0.0, - G_null)
+    #     # prev = self.g.eval(np.array([0]))
+    #     # # G_ascend = np.array([self.g.eval(np.arange(i + 1)) - self.g.eval(np.arange(i)) for i in self.V-10])
+    #     # G_ascend = np.zeros(shape=self.V.shape[0])
+    #     # for i in self.V-30:
+    #     #     G_ascend[i] = self.g.eval(np.arange(i + 1)) - prev
+    #     #     prev = G_ascend[i]
+    #     # # G_ascend = np.array([self.g.eval(np.arange(i + 1)) - prev for i in self.V - 10])
+    #     # self.w = np.array([np.max(np.array([0.0, G_ascend[i]])) for i in self.V]).flatten()
+    #     self.w = np.array([self.c[i] for i in self.V])
 
     # def eval(self, subset):
     #     return self.null_val + self.w[subset].sum()  # ( )
@@ -85,7 +104,7 @@ class modular_distort_greedy:
         else:
             subset_c = self.get_c(subset)
 
-        l = np.array([self.w[i] for i in subset_c]).flatten()
+        l = np.array([self.c[i] for i in subset_c]).flatten()
         return l
 
 
@@ -100,6 +119,7 @@ class G:
         self.n = self.X.shape[0]
         self.V = np.arange(self.n)
         self.init_data_str()
+        self.bigVal = 1000
 
     def reset(self):
         self.init_data_str()
@@ -143,7 +163,7 @@ class G:
         x = self.X[subset_c]
         y = self.Y[subset_c]
         reg_par = float(1) / (2.0 * self.lamb * subset_c.shape[0])
-        model = svm.LinearSVC(C=reg_par)
+        model = svm.LinearSVC(C=reg_par, loss='hinge',intercept_scaling=10)
         # model = svm.SVC(kernel='linear', C=reg_par)
         model.fit(x, y)
         y_pred = model.decision_function(x)
@@ -157,6 +177,7 @@ class G:
 
         hinge_machine_loss = hinge_loss(y, y_pred)
         hinge_machine_loss *= y_pred.shape[0]
+        print reg, hinge_machine_loss
         return reg + hinge_machine_loss
 
     def get_soft_linear_svm_w(self, subset_c):
@@ -167,7 +188,7 @@ class G:
 
         # model = svm.SVC(fit_intercept=False, kernel='poly', degree=2, C=0.01)
         reg_par = float(1)/(2.0*self.lamb*subset_c.shape[0])
-        model = svm.LinearSVC(fit_intercept=False, C=reg_par)
+        model = svm.LinearSVC(fit_intercept=False, C=reg_par,loss='hinge')
         # print reg_par
         # model = SVC(C=reg_par, kernel='linear')
         # model.fit(x, y)
@@ -181,6 +202,7 @@ class G:
 
         hinge_machine_loss = hinge_loss(y, y_pred)
         hinge_machine_loss *= y_pred.shape[0]
+        print reg, hinge_machine_loss
         return reg + hinge_machine_loss
 
     def get_soft_kernel_svm_w_b(self, subset_c):
@@ -199,15 +221,16 @@ class G:
                 hasminus=True
 
         # if((not hasplus) or (not hasminus)):
-        #     return 1000000000
+        #     return 1000.0,0.0, np.zeros((self.X.shape[0]))
 
 
         # model = svm.SVC(kernel='poly', degree=2, C=0.01)
         reg_par = float(1) / (2.0 * self.lamb * subset_c.shape[0])
         # model = svm.LinearSVC(C=reg_par)
         # model = SVC(C=reg_par, kernel='polynomial', degree=2)
-        # model = svm.SVC(kernel='poly', degree=2, C=reg_par)
-        model = svm.SVC(C=30,gamma=0.0001)
+        model = svm.SVC(kernel='sigmoid', C=reg_par)
+        # model = svm.SVC(C=reg_par,gamma=0.001)
+        # model = svm.SVC(C=reg_par,gamma=0.0001)
         # model = svm.SVC(C=reg_par,kernel='poly',degree=2)
         model.fit(x, y)
         w = model.dual_coef_
@@ -215,8 +238,8 @@ class G:
         y_pred = model.decision_function(x)
         hinge_machine_loss = hinge_loss(y, y_pred)
         hinge_machine_loss *= y_pred.shape[0]
-        # print reg, hinge_machine_loss
-        return reg + hinge_machine_loss
+        print reg, hinge_machine_loss
+        return reg + hinge_machine_loss, self.lamb * np.dot(w, w.T)[0][0], np.maximum(0,1-model.decision_function(self.X)*self.Y)
 
     def get_soft_kernel_svm_w(self, subset_c):
         from sklearn import svm
@@ -311,7 +334,7 @@ class G:
             machine_error = self.get_soft_linear_svm_w(subset_c)
 
         if self.svm_type == 'soft_kernel_with_offset':
-            machine_error = self.get_soft_kernel_svm_w_b(subset_c)
+            machine_error,_,_ = self.get_soft_kernel_svm_w_b(subset_c)
 
         if self.svm_type == 'soft_kernel_without_offset':
             machine_error = self.get_soft_kernel_svm_w(subset_c)
@@ -320,7 +343,8 @@ class G:
         c_S = self.c_S + self.c[elm]
 
         # return -np.log(machine_error + c_S)
-        return - machine_error
+
+        return - (machine_error)#, reg, hinge #+ self.bigVal
 
     def eval_curr(self, subset_c):
         if self.svm_type == 'hard_linear_with_offset':
@@ -336,43 +360,51 @@ class G:
             machine_error = self.get_soft_linear_svm_w(subset_c)
 
         if self.svm_type == 'soft_kernel_with_offset':
-            machine_error = self.get_soft_kernel_svm_w_b(subset_c)
+            machine_error,reg, hinge = self.get_soft_kernel_svm_w_b(subset_c)
 
         if self.svm_type == 'soft_kernel_without_offset':
             machine_error = self.get_soft_kernel_svm_w(subset_c)
         # machine_error = self.my_soft_svm_w_b(subset_c)
         # return -np.log(machine_error + self.c_S)
-        return - machine_error
+        return - machine_error, reg, hinge
 
     def get_inc_arr(self, subset, rest_flag=False, subset_rest=None):
         subset_c = self.get_c(subset)
-        G_S = self.eval_curr(subset_c)
+        F_S, reg, hinge = self.eval_curr(subset_c)
 
         if rest_flag:
             subset_c = subset_rest
         else:
             subset_c = self.get_c(subset)
 
-        vec = []
+        # vec = []
         # G_S = self.eval_curr(subset_c)[0][0]
         # G_S = self.eval_curr(subset_c)
 
+        vec = np.zeros((subset_c.shape[0]))
+        for vec_idx, i in enumerate(subset_c):
+            val = self.give_inc(subset, i)
+            vec[vec_idx] = (val - F_S)
+            # vec = np.array(vec
+            if vec[vec_idx] < 0:
+                vec[vec_idx] = reg + hinge[i]
 
-        for i in subset_c:
-            vec.append(self.give_inc(subset, i) - G_S)
+            # assert (G_S>0).all()
+        assert (np.array(vec)>=0).all()
 
-        return np.array(vec), subset_c
+
+        return vec, subset_c
 
     def eval(self, subset=None):
-        if subset.shape[0] == self.n:
-            return -np.log(self.c.sum())
+        # if subset.shape[0] == self.n:
+        #     return -np.log(self.c.sum())
 
         subset_c = self.get_c(subset)
 
-        if subset.size == 0:
-            c_S = 0
-        else:
-            c_S = self.c[subset].sum()
+        # if subset.size == 0:
+        #     c_S = 0
+        # else:
+        #     c_S = self.c[subset].sum()
         if self.svm_type == 'hard_linear_with_offset':
             machine_error = self.get_hard_linear_svm_w_b(subset_c)
 
@@ -386,10 +418,10 @@ class G:
             machine_error = self.get_soft_linear_svm_w(subset_c)
 
         if self.svm_type == 'soft_kernel_with_offset':
-            machine_error = self.get_soft_kernel_svm_w_b(subset_c)
+            machine_error,_,_ = self.get_soft_kernel_svm_w_b(subset_c)
 
         if self.svm_type == 'soft_kernel_without_offset':
             machine_error = self.get_soft_kernel_svm_w(subset_c)
         # machine_error = self.my_soft_svm_w_b(subset_c)
         # return -np.log(machine_error + c_S)
-        return - machine_error
+        return - machine_error #+ self.bigVal
